@@ -14,8 +14,8 @@
     <h2 class="text-center text-primary fw-bold mb-4">🛒 SỔ SÁCH TẠP HÓA SOẠN</h2>
     
     <ul class="nav nav-pills mb-3 bg-white p-2 rounded shadow-sm justify-content-center">
-        <li class="nav-item"><button class="nav-link active" data-bs-toggle="pill" data-bs-target="#tab1">📝 1. NHẬP NHẬT KÝ</button></li>
-        <li class="nav-item"><button class="nav-link" data-bs-toggle="pill" data-bs-target="#tab2">📊 2. XEM BÁO CÁO THUẾ</button></li>
+        <li class="nav-item"><button class="nav-link active" id="tab1-btn" data-bs-toggle="pill" data-bs-target="#tab1">📝 1. NHẬP NHẬT KÝ</button></li>
+        <li class="nav-item"><button class="nav-link" id="tab2-btn" data-bs-toggle="pill" data-bs-target="#tab2">📊 2. XEM BÁO CÁO THUẾ</button></li>
     </ul>
 
     <div class="tab-content">
@@ -26,6 +26,7 @@
                         <div class="card-header bg-primary text-white fw-bold">NHẬP ĐƠN</div>
                         <form action="${pageContext.request.contextPath}/sales-journal" method="post" class="mt-2">
                             <input type="hidden" name="action" value="add">
+                            <input type="hidden" name="origin" value="journal"> 
                             <div class="mb-2">Ngày: <input type="date" name="entryDate" class="form-control" value="<%= java.time.LocalDate.now() %>"></div>
                             <div class="mb-2">Hàng hóa: <input type="text" name="description" class="form-control" required placeholder="VD: Mì tôm"></div>
                             <div class="mb-2">Khách: <input type="text" name="customerName" class="form-control" placeholder="Tên khách"></div>
@@ -56,7 +57,7 @@
                                         <td class="text-start"><%=e.getDescription()%></td>
                                         <td class="fw-bold"><%=String.format("%,.0f", e.getRevenue())%></td>
                                         <td>
-                                            <button onclick="edit('<%=e.getId()%>','<%=e.getEntryDate()%>','<%=e.getDescription()%>','<%=e.getCustomerName()%>','<%=e.getQuantity()%>','<%=e.getPrice()%>')" class="btn btn-sm btn-outline-primary border-0">✏️</button>
+                                            <button onclick="edit('<%=e.getId()%>','<%=e.getEntryDate()%>','<%=e.getDescription()%>','<%=e.getCustomerName()%>','<%=e.getQuantity()%>','<%=e.getPrice()%>', 'journal')" class="btn btn-sm btn-outline-primary border-0">✏️</button>
                                             <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=e.getId()%>" class="btn btn-sm btn-outline-danger border-0" onclick="return confirm('Xóa?')">🗑</a>
                                         </td>
                                     </tr>
@@ -101,8 +102,9 @@
                                                 <td><%=String.format("%,.0f", raw.getPrice())%></td>
                                                 <td class="fw-bold"><%=String.format("%,.0f", raw.getRevenue())%></td>
                                                 <td>
-                                                    <button onclick="switchModal('<%=raw.getId()%>','<%=raw.getEntryDate()%>','<%=raw.getDescription()%>','<%=raw.getCustomerName()%>','<%=raw.getQuantity()%>','<%=raw.getPrice()%>')" class="btn btn-sm btn-primary py-0 px-1">✏️</button>
-                                                    <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=raw.getId()%>" onclick="return confirm('Xóa?')" class="btn btn-sm btn-danger py-0 px-1">🗑</a>
+                                                    <button onclick="switchModal('<%=raw.getId()%>','<%=raw.getEntryDate()%>','<%=raw.getDescription()%>','<%=raw.getCustomerName()%>','<%=raw.getQuantity()%>','<%=raw.getPrice()%>', 'report')" class="btn btn-sm btn-primary py-0 px-1">✏️</button>
+                                                    
+                                                    <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=raw.getId()%>&tab=report" onclick="return confirm('Xóa?')" class="btn btn-sm btn-danger py-0 px-1">🗑</a>
                                                 </td>
                                             </tr>
                                             <% }}} %>
@@ -123,6 +125,7 @@
     <form action="${pageContext.request.contextPath}/sales-journal" method="post">
         <input type="hidden" name="action" value="update">
         <input type="hidden" name="id" id="eid">
+        <input type="hidden" name="origin" id="eorigin">
         
         <div class="modal-header bg-primary text-white"><h5 class="modal-title">Sửa Đơn Hàng</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
@@ -143,33 +146,45 @@
 </div></div></div>
 
 <script>
-// Hàm sửa đơn giản (Tab 1)
-function edit(id,date,desc,cust,qty,price){
-    document.getElementById('eid').value=id; document.getElementById('edate').value=date;
-    document.getElementById('edesc').value=desc; document.getElementById('ecust').value=cust;
-    document.getElementById('eqty').value=qty; document.getElementById('eprice').value=parseFloat(price).toFixed(0);
+// TỰ ĐỘNG CHUYỂN TAB NẾU URL CÓ CHỮ ?tab=report
+window.onload = function() {
+    const params = new URLSearchParams(window.location.search);
+    if(params.get('tab') === 'report') {
+        // Kích hoạt nút Tab 2
+        const tabBtn = document.querySelector('#tab2-btn');
+        bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+    }
+}
+
+// Hàm sửa: nhận thêm tham số 'source' (nguồn gốc)
+function edit(id,date,desc,cust,qty,price, source){
+    document.getElementById('eid').value=id; 
+    document.getElementById('edate').value=date;
+    document.getElementById('edesc').value=desc; 
+    document.getElementById('ecust').value=cust;
+    document.getElementById('eqty').value=qty; 
+    document.getElementById('eprice').value=parseFloat(price).toFixed(0);
+    
+    // Gán nguồn gốc (journal hay report) vào ô ẩn để Server biết
+    document.getElementById('eorigin').value = source || 'journal';
+    
     new bootstrap.Modal(document.getElementById('editModal')).show();
 }
 
-// Hàm mở danh sách chi tiết (Tab 2)
 function showDetailModal(dateKey) {
     document.getElementById('dtTitle').innerText = dateKey;
     document.getElementById('detailContent').innerHTML = document.getElementById('data-' + dateKey).innerHTML;
     new bootstrap.Modal(document.getElementById('detailModal')).show();
 }
 
-// HÀM MỚI QUAN TRỌNG: Chuyển từ Xem -> Sửa an toàn
-function switchModal(id,date,desc,cust,qty,price){
-    // 1. Tìm và tắt modal chi tiết trước
+// Hàm chuyển Modal và nhớ nguồn là 'report'
+function switchModal(id,date,desc,cust,qty,price, source){
     var detailEl = document.getElementById('detailModal');
     var detailInstance = bootstrap.Modal.getInstance(detailEl);
-    if (detailInstance) {
-        detailInstance.hide();
-    }
+    if (detailInstance) { detailInstance.hide(); }
     
-    // 2. Chờ 1 xíu để nó tắt hẳn rồi mới bật cái Sửa lên (tránh xung đột)
     setTimeout(function(){
-        edit(id,date,desc,cust,qty,price);
+        edit(id,date,desc,cust,qty,price, source);
     }, 200);
 }
 </script>

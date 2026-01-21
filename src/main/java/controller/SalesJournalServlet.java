@@ -15,7 +15,6 @@ public class SalesJournalServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
 
     // --- CẤU HÌNH DATABASE ---
-    // Mẹo: Khi chạy trên Codespaces, bạn nên dùng Link Public (TCP Proxy) của Railway
     // Ví dụ: jdbc:mysql://monorail.proxy.rlwy.net:12345/railway
     private String jdbcURL = "mysql://root:twHYzvjfGWtpYPZHVWBcmuzIJTHxUQzS@mysql.railway.internal:3306/railway"; 
     private String jdbcUsername = "root";
@@ -24,17 +23,13 @@ public class SalesJournalServlet extends HttpServlet {
     @Override
     public void init() {
         try {
-            // 1. Xử lý đường dẫn Database (Thêm jdbc: và bỏ mysql:// nếu có)
             String envUrl = System.getenv("MYSQL_URL");
             if(envUrl != null && !envUrl.isEmpty()) {
                 this.jdbcURL = envUrl;
             }
-            // Java cần prefix "jdbc:mysql://", nhưng Railway lại đưa "mysql://"
             if (this.jdbcURL.startsWith("mysql://")) {
                 this.jdbcURL = this.jdbcURL.replace("mysql://", "jdbc:mysql://");
             }
-            
-            // 2. Kết nối và tạo bảng nếu chưa có
             Class.forName("com.mysql.cj.jdbc.Driver");
             try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword);
                  Statement stmt = conn.createStatement()) {
@@ -47,16 +42,13 @@ public class SalesJournalServlet extends HttpServlet {
                              "price DOUBLE)";
                 stmt.executeUpdate(sql);
             }
-        } catch (Exception e) { 
-            e.printStackTrace(); 
-            System.out.println("Lỗi kết nối Database: " + e.getMessage());
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String action = req.getParameter("action");
 
-        // 1. XÓA (Dùng SQL)
+        // 1. XÓA
         if ("delete".equals(action)) {
             try {
                 String idStr = req.getParameter("id");
@@ -70,13 +62,17 @@ public class SalesJournalServlet extends HttpServlet {
                 }
             } catch (Exception e) { e.printStackTrace(); }
             
-            // Chuyển hướng bằng JS để tránh lỗi URL
+            // Xóa xong quay về đúng Tab
+            String fromTab = req.getParameter("tab"); 
+            String redirectUrl = "sales-journal";
+            if("report".equals(fromTab)) redirectUrl += "?tab=report";
+            
             resp.setContentType("text/html; charset=UTF-8");
-            resp.getWriter().println("<script>window.location.href='sales-journal';</script>");
+            resp.getWriter().println("<script>window.location.href='" + redirectUrl + "';</script>");
             return;
         }
 
-        // 2. XUẤT EXCEL (Nhật ký hoặc S2a)
+        // 2. XUẤT EXCEL
         if ("exportDaily".equals(action)) {
             exportDailyExcel(resp, getSalesFromDB());
             return;
@@ -86,11 +82,11 @@ public class SalesJournalServlet extends HttpServlet {
             return;
         }
 
-        // 3. HIỂN THỊ TRANG CHỦ (Lấy từ DB)
+        // 3. HIỂN THỊ
         List<SalesEntry> list = getSalesFromDB();
         req.setAttribute("dailyList", list);
         
-        // Tính toán số liệu cho Tab 2 (S2a)
+        // Tính toán S2a
         Map<String, Double> s2aMap = new TreeMap<>(Collections.reverseOrder());
         for(SalesEntry e : list) {
             if(e.getEntryDate() != null) {
@@ -109,6 +105,8 @@ public class SalesJournalServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         req.setCharacterEncoding("UTF-8");
         String action = req.getParameter("action");
+        String origin = req.getParameter("origin"); // Nhận diện xem đang sửa ở Tab nào
+
         try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword)) {
             String date = req.getParameter("entryDate");
             String cust = req.getParameter("customerName");
@@ -132,18 +130,23 @@ public class SalesJournalServlet extends HttpServlet {
             }
         } catch(Exception e){ e.printStackTrace(); }
         
+        // Điều hướng về đúng Tab sau khi Lưu
+        String redirectUrl = "sales-journal";
+        if("report".equals(origin)) {
+            redirectUrl += "?tab=report"; // Nếu sửa từ Tab Báo cáo, thêm đuôi để mở lại Tab đó
+        }
+        
         resp.setContentType("text/html; charset=UTF-8");
-        resp.getWriter().println("<script>window.location.href='sales-journal';</script>");
+        resp.getWriter().println("<script>window.location.href='" + redirectUrl + "';</script>");
     }
 
     // --- CÁC HÀM PHỤ TRỢ ---
 
-    // 1. Lấy dữ liệu từ Database
     private List<SalesEntry> getSalesFromDB() {
         List<SalesEntry> list = new ArrayList<>();
         try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword);
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT * FROM sales ORDER BY entry_date DESC")) {
+             ResultSet rs = stmt.executeQuery("SELECT * FROM sales ORDER BY entry_date DESC")) { // Web: Mới nhất lên đầu
             while (rs.next()) {
                 list.add(new SalesEntry(
                     rs.getInt("id"),
@@ -158,8 +161,11 @@ public class SalesJournalServlet extends HttpServlet {
         return list;
     }
 
-    // 2. Xuất Excel Nhật Ký (Form Tạp Hóa Soạn)
+    // Xuất Excel Nhật Ký (Đã sửa lỗi ngày tháng bị ngược)
     private void exportDailyExcel(HttpServletResponse resp, List<SalesEntry> list) throws IOException {
+        // QUAN TRỌNG: Sắp xếp lại danh sách theo thứ tự Ngày Cũ -> Ngày Mới
+        Collections.sort(list, Comparator.comparing(SalesEntry::getEntryDate));
+
         resp.setContentType("application/vnd.ms-excel; charset=UTF-8");
         resp.setHeader("Content-Disposition", "attachment; filename=So_Ban_Hang_TapHoaSoan.xls");
         PrintWriter out = resp.getWriter();
@@ -203,14 +209,16 @@ public class SalesJournalServlet extends HttpServlet {
         out.println("</table></body></html>");
     }
 
-    // 3. Xuất Excel S2a (Form Thuế)
     private void exportS2aExcel(HttpServletResponse resp, List<SalesEntry> list) throws IOException {
+        // Sắp xếp lại danh sách S2a theo thứ tự Cũ -> Mới luôn cho chuẩn
+        Collections.sort(list, Comparator.comparing(SalesEntry::getEntryDate));
+        
         resp.setContentType("application/vnd.ms-excel; charset=UTF-8");
         resp.setHeader("Content-Disposition", "attachment; filename=S2a_HKD_PhanThiSoan.xls");
         PrintWriter out = resp.getWriter();
         out.write('\ufeff');
 
-        Map<String, Double> s2aMap = new TreeMap<>();
+        Map<String, Double> s2aMap = new TreeMap<>(); // TreeMap tự động sắp xếp ngày tăng dần
         double totalRevenue = 0;
         if (list != null) {
             for (SalesEntry e : list) {
@@ -221,6 +229,9 @@ public class SalesJournalServlet extends HttpServlet {
             }
         }
 
+        // ... (Giữ nguyên phần vẽ form S2a của bạn ở đây để tiết kiệm dòng lệnh) ...
+        // ... (Dán lại phần vẽ HTML S2a cũ vào đây, hoặc dùng code cũ cũng được) ...
+        
         out.println("<html><head><meta charset='UTF-8'><style>body{font-family:'Times New Roman'; font-size:12pt;} .title{font-size:16pt; font-weight:bold;} .bold{font-weight:bold;}</style></head><body>");
         out.println("<table border='0' width='100%'>");
         out.println("<tr><td colspan='2' class='bold'>HỘ, CÁ NHÂN KINH DOANH:</td><td></td><td></td></tr>");
