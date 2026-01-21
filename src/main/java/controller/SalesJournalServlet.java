@@ -22,7 +22,6 @@ public class SalesJournalServlet extends HttpServlet {
     @Override
     public void init() {
         try {
-            // 1. Xử lý đường dẫn Database
             String envUrl = System.getenv("MYSQL_URL");
             if(envUrl != null && !envUrl.isEmpty()) {
                 this.jdbcURL = envUrl;
@@ -31,7 +30,6 @@ public class SalesJournalServlet extends HttpServlet {
                 this.jdbcURL = this.jdbcURL.replace("mysql://", "jdbc:mysql://");
             }
             
-            // 2. Kết nối và tạo bảng nếu chưa có
             Class.forName("com.mysql.cj.jdbc.Driver");
             try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword);
                  Statement stmt = conn.createStatement()) {
@@ -44,16 +42,13 @@ public class SalesJournalServlet extends HttpServlet {
                              "price DOUBLE)";
                 stmt.executeUpdate(sql);
             }
-        } catch (Exception e) { 
-            e.printStackTrace(); 
-            System.out.println("Lỗi kết nối Database: " + e.getMessage());
-        }
+        } catch (Exception e) { e.printStackTrace(); }
     }
 
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String action = req.getParameter("action");
 
-        // 1. XÓA LẺ (Delete by ID)
+        // 1. XÓA LẺ (1 dòng)
         if ("delete".equals(action)) {
             try {
                 String idStr = req.getParameter("id");
@@ -67,30 +62,42 @@ public class SalesJournalServlet extends HttpServlet {
                 }
             } catch (Exception e) { e.printStackTrace(); }
             
-            // Xóa xong quay về đúng Tab
             String fromTab = req.getParameter("tab"); 
             String redirectUrl = "sales-journal";
             if("report".equals(fromTab)) redirectUrl += "?tab=report";
-            
             resp.setContentType("text/html; charset=UTF-8");
             resp.getWriter().println("<script>window.location.href='" + redirectUrl + "';</script>");
             return;
         }
 
-        // 1.5. XÓA TẤT CẢ (RESET KỲ MỚI)
+        // 2. XÓA TOÀN BỘ NGÀY (MỚI THÊM)
+        if ("deleteDay".equals(action)) {
+            String dateToDelete = req.getParameter("date");
+            if(dateToDelete != null && !dateToDelete.isEmpty()) {
+                try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword);
+                     PreparedStatement ps = conn.prepareStatement("DELETE FROM sales WHERE entry_date = ?")) {
+                    ps.setString(1, dateToDelete);
+                    ps.executeUpdate();
+                } catch (Exception e) { e.printStackTrace(); }
+            }
+            // Xóa xong quay lại tab báo cáo
+            resp.setContentType("text/html; charset=UTF-8");
+            resp.getWriter().println("<script>window.location.href='sales-journal?tab=report';</script>");
+            return;
+        }
+
+        // 3. XÓA TẤT CẢ (RESET KỲ MỚI)
         if ("deleteAll".equals(action)) {
             try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword);
                  Statement stmt = conn.createStatement()) {
-                // TRUNCATE xóa sạch và reset ID về 1
                 stmt.executeUpdate("TRUNCATE TABLE sales"); 
             } catch (Exception e) { e.printStackTrace(); }
-            
             resp.setContentType("text/html; charset=UTF-8");
             resp.getWriter().println("<script>window.location.href='sales-journal';</script>");
             return;
         }
 
-        // 2. XUẤT EXCEL (Nhật ký hoặc S2a)
+        // 4. XUẤT EXCEL
         if ("exportDaily".equals(action)) {
             exportDailyExcel(resp, getSalesFromDB());
             return;
@@ -100,11 +107,10 @@ public class SalesJournalServlet extends HttpServlet {
             return;
         }
 
-        // 3. HIỂN THỊ TRANG CHỦ (Lấy từ DB)
+        // 5. HIỂN THỊ TRANG CHỦ
         List<SalesEntry> list = getSalesFromDB();
         req.setAttribute("dailyList", list);
         
-        // Tính toán số liệu cho Tab 2 (S2a)
         Map<String, Double> s2aMap = new TreeMap<>(Collections.reverseOrder());
         for(SalesEntry e : list) {
             if(e.getEntryDate() != null) {
@@ -123,7 +129,7 @@ public class SalesJournalServlet extends HttpServlet {
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         req.setCharacterEncoding("UTF-8");
         String action = req.getParameter("action");
-        String origin = req.getParameter("origin"); // Nhận diện xem đang sửa ở Tab nào
+        String origin = req.getParameter("origin");
 
         try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword)) {
             String date = req.getParameter("entryDate");
@@ -148,24 +154,18 @@ public class SalesJournalServlet extends HttpServlet {
             }
         } catch(Exception e){ e.printStackTrace(); }
         
-        // Điều hướng về đúng Tab sau khi Lưu
         String redirectUrl = "sales-journal";
-        if("report".equals(origin)) {
-            redirectUrl += "?tab=report"; // Nếu sửa từ Tab Báo cáo, thêm đuôi để mở lại Tab đó
-        }
+        if("report".equals(origin)) { redirectUrl += "?tab=report"; }
         
         resp.setContentType("text/html; charset=UTF-8");
         resp.getWriter().println("<script>window.location.href='" + redirectUrl + "';</script>");
     }
 
-    // --- CÁC HÀM PHỤ TRỢ ---
-
-    // 1. Lấy dữ liệu từ Database
     private List<SalesEntry> getSalesFromDB() {
         List<SalesEntry> list = new ArrayList<>();
         try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword);
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT * FROM sales ORDER BY entry_date DESC")) { // Web hiển thị Mới -> Cũ
+             ResultSet rs = stmt.executeQuery("SELECT * FROM sales ORDER BY entry_date DESC")) {
             while (rs.next()) {
                 list.add(new SalesEntry(
                     rs.getInt("id"),
@@ -180,10 +180,8 @@ public class SalesJournalServlet extends HttpServlet {
         return list;
     }
 
-    // 2. Xuất Excel Nhật Ký (Form Tạp Hóa Soạn - Sắp xếp Cũ -> Mới)
     private void exportDailyExcel(HttpServletResponse resp, List<SalesEntry> list) throws IOException {
         Collections.sort(list, Comparator.comparing(SalesEntry::getEntryDate));
-
         resp.setContentType("application/vnd.ms-excel; charset=UTF-8");
         resp.setHeader("Content-Disposition", "attachment; filename=So_Ban_Hang_TapHoaSoan.xls");
         PrintWriter out = resp.getWriter();
@@ -196,41 +194,23 @@ public class SalesJournalServlet extends HttpServlet {
         out.println("table { width: 100%; border-collapse: collapse; }");
         out.println(".tbl-data td, .tbl-data th { border: 1px solid black; padding: 5px; }");
         out.println("</style></head><body>");
-
-        out.println("<table border='0'><tr>");
-        out.println("<td colspan='3' class='header-left'>Tạp hoá Soạn</td>");
-        out.println("<td colspan='4' class='header-title'>SỔ BÁN HÀNG ( Năm 2026)</td>");
-        out.println("</tr><tr><td colspan='7'>&nbsp;</td></tr></table>");
-
-        out.println("<table class='tbl-data'>");
-        out.println("<tr style='background-color:#f0f0f0; text-align:center; font-weight:bold;'>");
-        out.println("<th>Ngày tháng</th><th>Khách hàng</th><th>Sản Phẩm</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Ghi chú</th></tr>");
+        out.println("<table border='0'><tr><td colspan='3' class='header-left'>Tạp hoá Soạn</td><td colspan='4' class='header-title'>SỔ BÁN HÀNG ( Năm 2026)</td></tr><tr><td colspan='7'>&nbsp;</td></tr></table>");
+        out.println("<table class='tbl-data'><tr style='background-color:#f0f0f0; text-align:center; font-weight:bold;'><th>Ngày tháng</th><th>Khách hàng</th><th>Sản Phẩm</th><th>Số lượng</th><th>Đơn giá</th><th>Thành tiền</th><th>Ghi chú</th></tr>");
 
         double totalAll = 0;
         if (list != null) {
             for (SalesEntry e : list) {
                 String vnDate = e.getEntryDate();
                 try { String[] p = vnDate.split("-"); vnDate = p[2] + "/" + p[1] + "/" + p[0]; } catch (Exception ex) {}
-                out.println("<tr>");
-                out.println("<td align='center'>" + vnDate + "</td>");
-                out.println("<td>" + (e.getCustomerName() == null ? "" : e.getCustomerName()) + "</td>");
-                out.println("<td>" + e.getDescription() + "</td>");
-                out.println("<td align='center'>" + e.getQuantity() + "</td>");
-                out.println("<td align='right'>" + String.format("%,.0f", e.getPrice()) + "</td>");
-                out.println("<td align='right'>" + String.format("%,.0f", e.getRevenue()) + "</td>");
-                out.println("<td></td>");
-                out.println("</tr>");
+                out.println("<tr><td align='center'>" + vnDate + "</td><td>" + (e.getCustomerName() == null ? "" : e.getCustomerName()) + "</td><td>" + e.getDescription() + "</td><td align='center'>" + e.getQuantity() + "</td><td align='right'>" + String.format("%,.0f", e.getPrice()) + "</td><td align='right'>" + String.format("%,.0f", e.getRevenue()) + "</td><td></td></tr>");
                 totalAll += e.getRevenue();
             }
         }
-        out.println("<tr style='font-weight:bold; background-color:#eaeaea;'><td colspan='5' align='center'>TỔNG CỘNG</td><td align='right'>" + String.format("%,.0f", totalAll) + "</td><td></td></tr>");
-        out.println("</table></body></html>");
+        out.println("<tr style='font-weight:bold; background-color:#eaeaea;'><td colspan='5' align='center'>TỔNG CỘNG</td><td align='right'>" + String.format("%,.0f", totalAll) + "</td><td></td></tr></table></body></html>");
     }
 
-    // 3. Xuất Excel S2a (Form Thuế - Sắp xếp Cũ -> Mới)
     private void exportS2aExcel(HttpServletResponse resp, List<SalesEntry> list) throws IOException {
         Collections.sort(list, Comparator.comparing(SalesEntry::getEntryDate));
-        
         resp.setContentType("application/vnd.ms-excel; charset=UTF-8");
         resp.setHeader("Content-Disposition", "attachment; filename=S2a_HKD_PhanThiSoan.xls");
         PrintWriter out = resp.getWriter();
@@ -238,52 +218,23 @@ public class SalesJournalServlet extends HttpServlet {
 
         Map<String, Double> s2aMap = new TreeMap<>();
         double totalRevenue = 0;
-        if (list != null) {
-            for (SalesEntry e : list) {
-                if (e.getEntryDate() != null && !e.getEntryDate().isEmpty()) {
-                    s2aMap.put(e.getEntryDate(), s2aMap.getOrDefault(e.getEntryDate(), 0.0) + e.getRevenue());
-                    totalRevenue += e.getRevenue();
-                }
-            }
-        }
+        if (list != null) for (SalesEntry e : list) if (e.getEntryDate() != null) { s2aMap.put(e.getEntryDate(), s2aMap.getOrDefault(e.getEntryDate(), 0.0) + e.getRevenue()); totalRevenue += e.getRevenue(); }
 
         out.println("<html><head><meta charset='UTF-8'><style>body{font-family:'Times New Roman'; font-size:12pt;} .title{font-size:16pt; font-weight:bold;} .bold{font-weight:bold;}</style></head><body>");
-        out.println("<table border='0' width='100%'>");
-        out.println("<tr><td colspan='2' class='bold'>HỘ, CÁ NHÂN KINH DOANH:</td><td></td><td></td></tr>");
-        out.println("<tr><td colspan='2'>TẠP HOÁ PHAN THỊ SOẠN</td><td></td><td class='bold'>Mẫu số S2a-HKD</td></tr>");
-        out.println("<tr><td colspan='2'>Địa chỉ: tổ 6, thôn Tú Cẩm, xã Thăng Điền, TP.Đà Nẵng</td><td></td><td>(Kèm theo Thông tư số 152/2025/TT-BTC,</td></tr>");
-        out.println("<tr><td colspan='2'>Mã số thuế: 049172</td><td></td><td>ngày 31 tháng 12 năm 2025 của ,</td></tr>");
-        out.println("<tr><td colspan='2'></td><td></td><td>Bộ trưởng Bộ Tài chính),</td></tr>");
-        out.println("<tr><td colspan='4' align='center' class='title'>SỔ DOANH THU BÁN HÀNG HÓA, DỊCH VỤ</td></tr>");
-        out.println("<tr><td colspan='2'>Địa điểm kinh doanh: tổ 6, thôn Tú Cẩm, xã Thăng Điền, TP.Đà Nẵng</td><td colspan='2'></td></tr>");
-        out.println("<tr><td colspan='2'>Kỳ kê khai: Tháng ... Năm 2026</td><td colspan='2'></td></tr>");
-        out.println("<tr><td colspan='3'></td><td align='right'>Đơn vị tính: Đồng Việt Nam</td></tr>");
-        out.println("</table>");
+        out.println("<table border='0' width='100%'><tr><td colspan='2' class='bold'>HỘ, CÁ NHÂN KINH DOANH:</td><td></td><td></td></tr><tr><td colspan='2'>TẠP HOÁ PHAN THỊ SOẠN</td><td></td><td class='bold'>Mẫu số S2a-HKD</td></tr><tr><td colspan='2'>Địa chỉ: tổ 6, thôn Tú Cẩm, xã Thăng Điền, TP.Đà Nẵng</td><td></td><td>(Kèm theo Thông tư số 152/2025/TT-BTC,</td></tr><tr><td colspan='2'>Mã số thuế: 049172</td><td></td><td>ngày 31 tháng 12 năm 2025 của ,</td></tr><tr><td colspan='2'></td><td></td><td>Bộ trưởng Bộ Tài chính),</td></tr><tr><td colspan='4' align='center' class='title'>SỔ DOANH THU BÁN HÀNG HÓA, DỊCH VỤ</td></tr><tr><td colspan='2'>Địa điểm kinh doanh: tổ 6, thôn Tú Cẩm, xã Thăng Điền, TP.Đà Nẵng</td><td colspan='2'></td></tr><tr><td colspan='2'>Kỳ kê khai: Tháng ... Năm 2026</td><td colspan='2'></td></tr><tr><td colspan='3'></td><td align='right'>Đơn vị tính: Đồng Việt Nam</td></tr></table>");
+        out.println("<table border='1' style='border-collapse:collapse; width:100%; border: 1px solid black;'><tr style='background-color:#f0f0f0; text-align:center; font-weight:bold;'><td colspan='2'>Chứng từ</td><td>Diễn giải</td><td>Số tiền</td></tr><tr style='background-color:#f0f0f0; text-align:center; font-weight:bold;'><td>Số hiệu</td><td>Ngày, tháng</td><td></td><td></td></tr><tr><td></td><td></td><td class='bold'>1. Hoạt động bán buôn, bán lẻ</td><td></td></tr>");
 
-        out.println("<table border='1' style='border-collapse:collapse; width:100%; border: 1px solid black;'>");
-        out.println("<tr style='background-color:#f0f0f0; text-align:center; font-weight:bold;'><td colspan='2'>Chứng từ</td><td>Diễn giải</td><td>Số tiền</td></tr>");
-        out.println("<tr style='background-color:#f0f0f0; text-align:center; font-weight:bold;'><td>Số hiệu</td><td>Ngày, tháng</td><td></td><td></td></tr>");
-        out.println("<tr><td></td><td></td><td class='bold'>1. Hoạt động bán buôn, bán lẻ</td><td></td></tr>");
-
-        int stt = 1;
-        int rowCount = 0;
+        int stt = 1; int rowCount = 0;
         for (Map.Entry<String, Double> entry : s2aMap.entrySet()) {
-            String rawDate = entry.getKey();
-            String[] parts = rawDate.split("-");
-            String vnDate = parts[2] + "/" + parts[1] + "/" + parts[0];
-            out.println("<tr><td align='center'>" + (stt++) + "</td><td align='center'>" + vnDate + "</td><td>Doanh thu bán hàng hóa trong ngày</td><td align='right'>" + String.format("%,.0f", entry.getValue()) + "</td></tr>");
+            String[] parts = entry.getKey().split("-");
+            out.println("<tr><td align='center'>" + (stt++) + "</td><td align='center'>" + parts[2] + "/" + parts[1] + "/" + parts[0] + "</td><td>Doanh thu bán hàng hóa trong ngày</td><td align='right'>" + String.format("%,.0f", entry.getValue()) + "</td></tr>");
             rowCount++;
         }
         for (int i = 0; i < (20 - rowCount); i++) out.println("<tr><td></td><td></td><td></td><td></td></tr>");
-
+        
+        double thueGTGT = totalRevenue * 0.01, thueTNCN = totalRevenue * 0.005;
         out.println("<tr style='font-weight:bold; background-color:#eaeaea'><td></td><td></td><td align='center'>TỔNG CỘNG DOANH THU</td><td align='right'>" + String.format("%,.0f", totalRevenue) + "</td></tr>");
-        double thueGTGT = totalRevenue * 0.01;
-        double thueTNCN = totalRevenue * 0.005;
-        out.println("<tr><td></td><td></td><td>Thuế GTGT (1%)</td><td align='right'>" + String.format("%,.0f", thueGTGT) + "</td></tr>");
-        out.println("<tr><td></td><td></td><td>Thuế TNCN (0.5%)</td><td align='right'>" + String.format("%,.0f", thueTNCN) + "</td></tr>");
-        out.println("<tr class='bold'><td></td><td></td><td>Tổng số thuế phải nộp</td><td align='right'>" + String.format("%,.0f", thueGTGT + thueTNCN) + "</td></tr>");
-        out.println("</table>");
-
+        out.println("<tr><td></td><td></td><td>Thuế GTGT (1%)</td><td align='right'>" + String.format("%,.0f", thueGTGT) + "</td></tr><tr><td></td><td></td><td>Thuế TNCN (0.5%)</td><td align='right'>" + String.format("%,.0f", thueTNCN) + "</td></tr><tr class='bold'><td></td><td></td><td>Tổng số thuế phải nộp</td><td align='right'>" + String.format("%,.0f", thueGTGT + thueTNCN) + "</td></tr></table>");
         out.println("<br><table border='0' width='100%'><tr><td colspan='2'></td><td align='center'><i>Ngày ..... tháng ..... năm 2026</i></td></tr><tr><td align='center'><b>NGƯỜI LẬP BIỂU</b><br>(Ký, họ tên)</td><td></td><td align='center'><b>NGƯỜI ĐẠI DIỆN HỘ KINH DOANH</b><br>(Ký, họ tên và đóng dấu)<br><br><br><br><b>Phan Thị Soạn</b></td></tr></table></body></html>");
     }
 }
