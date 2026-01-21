@@ -15,6 +15,8 @@
         body { display: flex; flex-direction: column; min-height: 100vh; }
         .main-content { flex: 1; }
         footer { background-color: #f8f9fa; border-top: 1px solid #e9ecef; }
+        /* Khu vực nguy hiểm */
+        .danger-zone { border-top: 2px dashed #dc3545; margin-top: 20px; padding-top: 15px; background-color: #fff5f5; border-radius: 0 0 8px 8px; }
     </style>
 </head>
 <body class="bg-light">
@@ -75,40 +77,44 @@
                 </div>
 
                 <div class="col-md-7">
-                    <div class="card p-3 shadow-sm border-0">
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <h6 class="fw-bold text-secondary m-0">LỊCH SỬ VỪA NHẬP</h6>
-                            <div>
-                                <a href="${pageContext.request.contextPath}/sales-journal?action=deleteAll" 
-                                   class="btn btn-sm btn-danger fw-bold me-1"
-                                   onclick="return confirm('⚠️ CẢNH BÁO NGUY HIỂM!\n\nBạn có chắc muốn XÓA SẠCH toàn bộ dữ liệu không?\n\nHành động này sẽ:\n1. Xóa hết tất cả đơn hàng.\n2. Reset số thứ tự về 1.\n3. KHÔNG THỂ KHÔI PHỤC LẠI.\n\nHãy chắc chắn bạn đã Xuất Excel lưu về máy rồi!')">
-                                   🔄 Reset Kỳ Mới
-                                </a>
-                                <a href="${pageContext.request.contextPath}/sales-journal?action=exportDaily" class="btn btn-sm btn-outline-success fw-bold">📥 Excel</a>
+                    <div class="card shadow-sm border-0">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h6 class="fw-bold text-secondary m-0">LỊCH SỬ VỪA NHẬP</h6>
+                                <a href="${pageContext.request.contextPath}/sales-journal?action=exportDaily" class="btn btn-sm btn-success fw-bold">📥 Excel Nhật Ký</a>
+                            </div>
+                            <div class="table-responsive bg-white rounded border" style="max-height: 400px">
+                                <table class="table table-striped table-hover text-center align-middle mb-0">
+                                    <thead class="table-light sticky-top small"><tr><th>Hàng</th><th>Tiền</th><th>Sửa/Xóa</th></tr></thead>
+                                    <tbody>
+                                        <% 
+                                        List<SalesEntry> dailyList = (List<SalesEntry>)request.getAttribute("dailyList");
+                                        if(dailyList!=null) for(SalesEntry e : dailyList){ 
+                                        %>
+                                        <tr>
+                                            <td class="text-start">
+                                                <div class="fw-bold"><%=e.getDescription()%></div>
+                                                <div class="small text-muted"><%=e.getEntryDate()%></div>
+                                            </td>
+                                            <td class="fw-bold text-primary"><%=String.format("%,.0f", e.getRevenue())%></td>
+                                            <td>
+                                                <button onclick="edit('<%=e.getId()%>','<%=e.getEntryDate()%>','<%=e.getDescription()%>','<%=e.getCustomerName()%>','<%=e.getQuantity()%>','<%=e.getPrice()%>', 'journal')" class="btn btn-sm btn-outline-primary border-0 p-1">✏️</button>
+                                                <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=e.getId()%>" class="btn btn-sm btn-outline-danger border-0 p-1" onclick="return confirm('Xóa?')">🗑</a>
+                                            </td>
+                                        </tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                        <div class="table-responsive bg-white rounded" style="max-height: 400px">
-                            <table class="table table-striped table-hover text-center align-middle mb-0">
-                                <thead class="table-light sticky-top small"><tr><th>Hàng</th><th>Tiền</th><th>Sửa/Xóa</th></tr></thead>
-                                <tbody>
-                                    <% 
-                                    List<SalesEntry> dailyList = (List<SalesEntry>)request.getAttribute("dailyList");
-                                    if(dailyList!=null) for(SalesEntry e : dailyList){ 
-                                    %>
-                                    <tr>
-                                        <td class="text-start">
-                                            <div class="fw-bold"><%=e.getDescription()%></div>
-                                            <div class="small text-muted"><%=e.getEntryDate()%></div>
-                                        </td>
-                                        <td class="fw-bold text-primary"><%=String.format("%,.0f", e.getRevenue())%></td>
-                                        <td>
-                                            <button onclick="edit('<%=e.getId()%>','<%=e.getEntryDate()%>','<%=e.getDescription()%>','<%=e.getCustomerName()%>','<%=e.getQuantity()%>','<%=e.getPrice()%>', 'journal')" class="btn btn-sm btn-outline-primary border-0 p-1">✏️</button>
-                                            <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=e.getId()%>" class="btn btn-sm btn-outline-danger border-0 p-1" onclick="return confirm('Xóa?')">🗑</a>
-                                        </td>
-                                    </tr>
-                                    <% } %>
-                                </tbody>
-                            </table>
+                        
+                        <div class="danger-zone text-center p-3">
+                            <small class="d-block text-danger mb-2 fw-bold">⚠️ Vùng quản lý dữ liệu</small>
+                            <a href="${pageContext.request.contextPath}/sales-journal?action=deleteAll" 
+                               class="btn btn-outline-danger w-100 fw-bold"
+                               onclick="return confirm('⚠️ CẢNH BÁO: XÓA LỊCH SỬ\n\nBạn có chắc muốn xóa toàn bộ danh sách nhập đơn không?\n\nHành động này sẽ làm trống bảng lịch sử bên trên.')">
+                               🗑 XÓA TẤT CẢ LỊCH SỬ
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -116,48 +122,59 @@
         </div>
 
         <div class="tab-pane fade" id="tab2">
-            <div class="card p-3 shadow-sm border-0">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h5 class="text-success fw-bold m-0">BÁO CÁO THUẾ</h5>
-                    <a href="${pageContext.request.contextPath}/sales-journal?action=export" class="btn btn-success btn-sm fw-bold">📥 Tải S2a</a>
+            <div class="card shadow-sm border-0">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="text-success fw-bold m-0">BÁO CÁO THUẾ</h5>
+                        <a href="${pageContext.request.contextPath}/sales-journal?action=export" class="btn btn-success btn-sm fw-bold">📥 Tải Excel S2a</a>
+                    </div>
+                    
+                    <div class="table-responsive border rounded">
+                        <table class="table table-bordered text-center align-middle mb-0">
+                            <thead class="table-secondary small"><tr><th>Ngày</th><th>Doanh Thu</th><th>Chi tiết</th></tr></thead>
+                            <tbody>
+                                <% 
+                                List<SalesEntry> s2a = (List<SalesEntry>)request.getAttribute("s2aList");
+                                if(s2a!=null) for(SalesEntry sumEntry : s2a){ String dateKey = sumEntry.getEntryDate(); %>
+                                <tr class="hover-bg">
+                                    <td><%=dateKey%></td>
+                                    <td class="fw-bold text-primary"><%=String.format("%,.0f", sumEntry.getRevenue())%></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-dark fw-bold" onclick="showDetailModal('<%=dateKey%>')">Xem</button>
+                                        <div id="data-<%=dateKey%>" style="display:none;">
+                                            <table class="table table-sm table-bordered mt-2">
+                                                <thead class="table-light"><tr><th>Hàng</th><th>Tiền</th><th>Xử lý</th></tr></thead>
+                                                <tbody>
+                                                    <% if(dailyList!=null) {
+                                                        for(SalesEntry raw : dailyList) {
+                                                            if(raw.getEntryDate().equals(dateKey)) { %>
+                                                    <tr>
+                                                        <td class="text-start"><%=raw.getDescription()%> <span class="text-muted small">(<%=raw.getQuantity()%>)</span></td>
+                                                        <td class="fw-bold"><%=String.format("%,.0f", raw.getRevenue())%></td>
+                                                        <td>
+                                                            <button onclick="switchModal('<%=raw.getId()%>','<%=raw.getEntryDate()%>','<%=raw.getDescription()%>','<%=raw.getCustomerName()%>','<%=raw.getQuantity()%>','<%=raw.getPrice()%>', 'report')" class="btn btn-sm btn-primary py-0 px-1">✏️</button>
+                                                            <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=raw.getId()%>&tab=report" onclick="return confirm('Xóa?')" class="btn btn-sm btn-danger py-0 px-1">🗑</a>
+                                                        </td>
+                                                    </tr>
+                                                    <% }}} %>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                
-                <div class="table-responsive">
-                    <table class="table table-bordered text-center align-middle">
-                        <thead class="table-secondary small"><tr><th>Ngày</th><th>Doanh Thu</th><th>Chi tiết</th></tr></thead>
-                        <tbody>
-                            <% 
-                            List<SalesEntry> s2a = (List<SalesEntry>)request.getAttribute("s2aList");
-                            if(s2a!=null) for(SalesEntry sumEntry : s2a){ String dateKey = sumEntry.getEntryDate(); %>
-                            <tr class="hover-bg">
-                                <td><%=dateKey%></td>
-                                <td class="fw-bold text-primary"><%=String.format("%,.0f", sumEntry.getRevenue())%></td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-dark fw-bold" onclick="showDetailModal('<%=dateKey%>')">Xem</button>
-                                    <div id="data-<%=dateKey%>" style="display:none;">
-                                        <table class="table table-sm table-bordered mt-2">
-                                            <thead class="table-light"><tr><th>Hàng</th><th>Tiền</th><th>Xử lý</th></tr></thead>
-                                            <tbody>
-                                                <% if(dailyList!=null) {
-                                                    for(SalesEntry raw : dailyList) {
-                                                        if(raw.getEntryDate().equals(dateKey)) { %>
-                                                <tr>
-                                                    <td class="text-start"><%=raw.getDescription()%> <span class="text-muted small">(<%=raw.getQuantity()%>)</span></td>
-                                                    <td class="fw-bold"><%=String.format("%,.0f", raw.getRevenue())%></td>
-                                                    <td>
-                                                        <button onclick="switchModal('<%=raw.getId()%>','<%=raw.getEntryDate()%>','<%=raw.getDescription()%>','<%=raw.getCustomerName()%>','<%=raw.getQuantity()%>','<%=raw.getPrice()%>', 'report')" class="btn btn-sm btn-primary py-0 px-1">✏️</button>
-                                                        <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=raw.getId()%>&tab=report" onclick="return confirm('Xóa?')" class="btn btn-sm btn-danger py-0 px-1">🗑</a>
-                                                    </td>
-                                                </tr>
-                                                <% }}} %>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </td>
-                            </tr>
-                            <% } %>
-                        </tbody>
-                    </table>
+
+                <div class="danger-zone text-center p-3">
+                    <small class="d-block text-danger mb-2 fw-bold">⚠️ Hết Quý / Hết Năm</small>
+                    <a href="${pageContext.request.contextPath}/sales-journal?action=deleteAll" 
+                       class="btn btn-danger w-100 fw-bold shadow"
+                       onclick="return confirm('⛔️ CẢNH BÁO QUAN TRỌNG!\n\nBạn đang chọn: KẾT THÚC KỲ - RESET SỐ LIỆU\n\n1. Hành động này sẽ XÓA SẠCH toàn bộ dữ liệu.\n2. Số thứ tự (ID) sẽ quay về 1.\n3. Dùng khi bạn đã nộp báo cáo xong và muốn bắt đầu kỳ mới.\n\nBạn đã tải file Excel về chưa?')">
+                       🔄 KẾT THÚC KỲ - RESET MỚI
+                    </a>
                 </div>
             </div>
         </div>
