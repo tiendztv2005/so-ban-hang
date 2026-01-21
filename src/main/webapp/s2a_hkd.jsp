@@ -15,7 +15,7 @@
         body { display: flex; flex-direction: column; min-height: 100vh; }
         .main-content { flex: 1; }
         footer { background-color: #f8f9fa; border-top: 1px solid #e9ecef; }
-        /* Khu vực nguy hiểm */
+        /* Khu vực nguy hiểm chỉ còn ở Tab 2 */
         .danger-zone { border-top: 2px dashed #dc3545; margin-top: 20px; padding-top: 15px; background-color: #fff5f5; border-radius: 0 0 8px 8px; }
     </style>
 </head>
@@ -98,7 +98,7 @@
                                             </td>
                                             <td class="fw-bold text-primary"><%=String.format("%,.0f", e.getRevenue())%></td>
                                             <td>
-                                                <button onclick="edit('<%=e.getId()%>','<%=e.getEntryDate()%>','<%=e.getDescription()%>','<%=e.getCustomerName()%>','<%=e.getQuantity()%>','<%=e.getPrice()%>', 'journal')" class="btn btn-sm btn-outline-primary border-0 p-1">✏️</button>
+                                                <button type="button" onclick="edit('<%=e.getId()%>','<%=e.getEntryDate()%>','<%=e.getDescription()%>','<%=e.getCustomerName()%>','<%=e.getQuantity()%>','<%=e.getPrice()%>', 'journal')" class="btn btn-sm btn-outline-primary border-0 p-1">✏️</button>
                                                 <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=e.getId()%>" class="btn btn-sm btn-outline-danger border-0 p-1" onclick="return confirm('Xóa?')">🗑</a>
                                             </td>
                                         </tr>
@@ -107,16 +107,7 @@
                                 </table>
                             </div>
                         </div>
-                        
-                        <div class="danger-zone text-center p-3">
-                            <small class="d-block text-danger mb-2 fw-bold">⚠️ Vùng quản lý dữ liệu</small>
-                            <a href="${pageContext.request.contextPath}/sales-journal?action=deleteAll" 
-                               class="btn btn-outline-danger w-100 fw-bold"
-                               onclick="return confirm('⚠️ CẢNH BÁO: XÓA LỊCH SỬ\n\nBạn có chắc muốn xóa toàn bộ danh sách nhập đơn không?\n\nHành động này sẽ làm trống bảng lịch sử bên trên.')">
-                               🗑 XÓA TẤT CẢ LỊCH SỬ
-                            </a>
                         </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -152,7 +143,7 @@
                                                         <td class="text-start"><%=raw.getDescription()%> <span class="text-muted small">(<%=raw.getQuantity()%>)</span></td>
                                                         <td class="fw-bold"><%=String.format("%,.0f", raw.getRevenue())%></td>
                                                         <td>
-                                                            <button onclick="switchModal('<%=raw.getId()%>','<%=raw.getEntryDate()%>','<%=raw.getDescription()%>','<%=raw.getCustomerName()%>','<%=raw.getQuantity()%>','<%=raw.getPrice()%>', 'report')" class="btn btn-sm btn-primary py-0 px-1">✏️</button>
+                                                            <button type="button" onclick="switchModal('<%=raw.getId()%>','<%=raw.getEntryDate()%>','<%=raw.getDescription()%>','<%=raw.getCustomerName()%>','<%=raw.getQuantity()%>','<%=raw.getPrice()%>', 'report')" class="btn btn-sm btn-primary py-0 px-1">✏️</button>
                                                             <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=raw.getId()%>&tab=report" onclick="return confirm('Xóa?')" class="btn btn-sm btn-danger py-0 px-1">🗑</a>
                                                         </td>
                                                     </tr>
@@ -187,7 +178,7 @@
     </div>
 </footer>
 
-<div class="modal fade" id="editModal"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+<div class="modal fade" id="editModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered"><div class="modal-content">
     <form action="${pageContext.request.contextPath}/sales-journal" method="post">
         <input type="hidden" name="action" value="update">
         <input type="hidden" name="id" id="eid">
@@ -207,7 +198,7 @@
     </form>
 </div></div></div>
 
-<div class="modal fade" id="detailModal"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+<div class="modal fade" id="detailModal" tabindex="-1" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
     <div class="modal-header bg-success text-white"><h5 class="modal-title">Chi Tiết Ngày: <span id="dtTitle"></span></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
     <div class="modal-body" id="detailContent"></div>
     <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button></div>
@@ -216,28 +207,49 @@
 <script>
 window.onload = function() {
     const params = new URLSearchParams(window.location.search);
-    if(params.get('tab') === 'report') { bootstrap.Tab.getOrCreateInstance(document.querySelector('#tab2-btn')).show(); }
+    if(params.get('tab') === 'report') { 
+        var tabTrigger = document.querySelector('#tab2-btn');
+        var tab = bootstrap.Tab.getOrCreateInstance(tabTrigger);
+        tab.show();
+    }
 }
 
+// Hàm mở Modal Sửa (Đã fix lỗi getOrCreateInstance)
 function edit(id,date,desc,cust,qty,price, source){
-    document.getElementById('eid').value=id; document.getElementById('edate').value=date;
-    document.getElementById('edesc').value=desc; document.getElementById('ecust').value=cust;
-    document.getElementById('eqty').value=qty; document.getElementById('eprice').value=parseFloat(price).toFixed(0);
+    document.getElementById('eid').value=id; 
+    document.getElementById('edate').value=date;
+    document.getElementById('edesc').value=desc; 
+    document.getElementById('ecust').value=cust;
+    document.getElementById('eqty').value=qty; 
+    document.getElementById('eprice').value=parseFloat(price).toFixed(0);
     document.getElementById('eorigin').value = source || 'journal';
-    new bootstrap.Modal(document.getElementById('editModal')).show();
+    
+    // Dùng getOrCreateInstance để tránh lỗi
+    var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal'));
+    myModal.show();
 }
 
+// Hàm mở Modal Chi tiết
 function showDetailModal(dateKey) {
     document.getElementById('dtTitle').innerText = dateKey;
     document.getElementById('detailContent').innerHTML = document.getElementById('data-' + dateKey).innerHTML;
-    new bootstrap.Modal(document.getElementById('detailModal')).show();
+    
+    var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('detailModal'));
+    myModal.show();
 }
 
+// Hàm chuyển đổi an toàn
 function switchModal(id,date,desc,cust,qty,price, source){
     var detailEl = document.getElementById('detailModal');
-    var detailInstance = bootstrap.Modal.getInstance(detailEl);
-    if (detailInstance) { detailInstance.hide(); }
-    setTimeout(function(){ edit(id,date,desc,cust,qty,price, source); }, 200);
+    var detailInstance = bootstrap.Modal.getOrCreateInstance(detailEl);
+    
+    // Ẩn modal chi tiết
+    detailInstance.hide();
+    
+    // Chờ 300ms cho modal cũ tắt hẳn rồi mới bật modal sửa
+    setTimeout(function(){ 
+        edit(id,date,desc,cust,qty,price, source); 
+    }, 300);
 }
 </script>
 </body>
