@@ -15,7 +15,6 @@ public class SalesJournalServlet extends HttpServlet {
     private static final long serialVersionUID = 1L;
 
     // --- CẤU HÌNH DATABASE ---
-    // Ví dụ: jdbc:mysql://monorail.proxy.rlwy.net:12345/railway
     private String jdbcURL = "mysql://root:twHYzvjfGWtpYPZHVWBcmuzIJTHxUQzS@mysql.railway.internal:3306/railway"; 
     private String jdbcUsername = "root";
     private String jdbcPassword = "";
@@ -23,6 +22,7 @@ public class SalesJournalServlet extends HttpServlet {
     @Override
     public void init() {
         try {
+            // 1. Xử lý đường dẫn Database
             String envUrl = System.getenv("MYSQL_URL");
             if(envUrl != null && !envUrl.isEmpty()) {
                 this.jdbcURL = envUrl;
@@ -30,6 +30,8 @@ public class SalesJournalServlet extends HttpServlet {
             if (this.jdbcURL.startsWith("mysql://")) {
                 this.jdbcURL = this.jdbcURL.replace("mysql://", "jdbc:mysql://");
             }
+            
+            // 2. Kết nối và tạo bảng nếu chưa có
             Class.forName("com.mysql.cj.jdbc.Driver");
             try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword);
                  Statement stmt = conn.createStatement()) {
@@ -42,13 +44,16 @@ public class SalesJournalServlet extends HttpServlet {
                              "price DOUBLE)";
                 stmt.executeUpdate(sql);
             }
-        } catch (Exception e) { e.printStackTrace(); }
+        } catch (Exception e) { 
+            e.printStackTrace(); 
+            System.out.println("Lỗi kết nối Database: " + e.getMessage());
+        }
     }
 
     protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String action = req.getParameter("action");
 
-        // 1. XÓA
+        // 1. XÓA LẺ (Delete by ID)
         if ("delete".equals(action)) {
             try {
                 String idStr = req.getParameter("id");
@@ -72,7 +77,20 @@ public class SalesJournalServlet extends HttpServlet {
             return;
         }
 
-        // 2. XUẤT EXCEL
+        // 1.5. XÓA TẤT CẢ (RESET KỲ MỚI)
+        if ("deleteAll".equals(action)) {
+            try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword);
+                 Statement stmt = conn.createStatement()) {
+                // TRUNCATE xóa sạch và reset ID về 1
+                stmt.executeUpdate("TRUNCATE TABLE sales"); 
+            } catch (Exception e) { e.printStackTrace(); }
+            
+            resp.setContentType("text/html; charset=UTF-8");
+            resp.getWriter().println("<script>window.location.href='sales-journal';</script>");
+            return;
+        }
+
+        // 2. XUẤT EXCEL (Nhật ký hoặc S2a)
         if ("exportDaily".equals(action)) {
             exportDailyExcel(resp, getSalesFromDB());
             return;
@@ -82,11 +100,11 @@ public class SalesJournalServlet extends HttpServlet {
             return;
         }
 
-        // 3. HIỂN THỊ
+        // 3. HIỂN THỊ TRANG CHỦ (Lấy từ DB)
         List<SalesEntry> list = getSalesFromDB();
         req.setAttribute("dailyList", list);
         
-        // Tính toán S2a
+        // Tính toán số liệu cho Tab 2 (S2a)
         Map<String, Double> s2aMap = new TreeMap<>(Collections.reverseOrder());
         for(SalesEntry e : list) {
             if(e.getEntryDate() != null) {
@@ -142,11 +160,12 @@ public class SalesJournalServlet extends HttpServlet {
 
     // --- CÁC HÀM PHỤ TRỢ ---
 
+    // 1. Lấy dữ liệu từ Database
     private List<SalesEntry> getSalesFromDB() {
         List<SalesEntry> list = new ArrayList<>();
         try (Connection conn = DriverManager.getConnection(jdbcURL, jdbcUsername, jdbcPassword);
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT * FROM sales ORDER BY entry_date DESC")) { // Web: Mới nhất lên đầu
+             ResultSet rs = stmt.executeQuery("SELECT * FROM sales ORDER BY entry_date DESC")) { // Web hiển thị Mới -> Cũ
             while (rs.next()) {
                 list.add(new SalesEntry(
                     rs.getInt("id"),
@@ -161,9 +180,8 @@ public class SalesJournalServlet extends HttpServlet {
         return list;
     }
 
-    // Xuất Excel Nhật Ký (Đã sửa lỗi ngày tháng bị ngược)
+    // 2. Xuất Excel Nhật Ký (Form Tạp Hóa Soạn - Sắp xếp Cũ -> Mới)
     private void exportDailyExcel(HttpServletResponse resp, List<SalesEntry> list) throws IOException {
-        // QUAN TRỌNG: Sắp xếp lại danh sách theo thứ tự Ngày Cũ -> Ngày Mới
         Collections.sort(list, Comparator.comparing(SalesEntry::getEntryDate));
 
         resp.setContentType("application/vnd.ms-excel; charset=UTF-8");
@@ -209,8 +227,8 @@ public class SalesJournalServlet extends HttpServlet {
         out.println("</table></body></html>");
     }
 
+    // 3. Xuất Excel S2a (Form Thuế - Sắp xếp Cũ -> Mới)
     private void exportS2aExcel(HttpServletResponse resp, List<SalesEntry> list) throws IOException {
-        // Sắp xếp lại danh sách S2a theo thứ tự Cũ -> Mới luôn cho chuẩn
         Collections.sort(list, Comparator.comparing(SalesEntry::getEntryDate));
         
         resp.setContentType("application/vnd.ms-excel; charset=UTF-8");
@@ -218,7 +236,7 @@ public class SalesJournalServlet extends HttpServlet {
         PrintWriter out = resp.getWriter();
         out.write('\ufeff');
 
-        Map<String, Double> s2aMap = new TreeMap<>(); // TreeMap tự động sắp xếp ngày tăng dần
+        Map<String, Double> s2aMap = new TreeMap<>();
         double totalRevenue = 0;
         if (list != null) {
             for (SalesEntry e : list) {
@@ -229,9 +247,6 @@ public class SalesJournalServlet extends HttpServlet {
             }
         }
 
-        // ... (Giữ nguyên phần vẽ form S2a của bạn ở đây để tiết kiệm dòng lệnh) ...
-        // ... (Dán lại phần vẽ HTML S2a cũ vào đây, hoặc dùng code cũ cũng được) ...
-        
         out.println("<html><head><meta charset='UTF-8'><style>body{font-family:'Times New Roman'; font-size:12pt;} .title{font-size:16pt; font-weight:bold;} .bold{font-weight:bold;}</style></head><body>");
         out.println("<table border='0' width='100%'>");
         out.println("<tr><td colspan='2' class='bold'>HỘ, CÁ NHÂN KINH DOANH:</td><td></td><td></td></tr>");

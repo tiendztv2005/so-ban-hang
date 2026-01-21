@@ -10,10 +10,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <style> 
         .hover-bg:hover { background-color: #f8f9fa; } 
-        /* Tối ưu cho mobile: Ô nhập to hơn, font chữ dễ đọc */
         .form-control { font-size: 16px; height: 50px; }
         .btn-lg-mobile { padding: 12px; font-size: 18px; font-weight: bold; }
-        /* Footer luôn nằm dưới cùng */
         body { display: flex; flex-direction: column; min-height: 100vh; }
         .main-content { flex: 1; }
         footer { background-color: #f8f9fa; border-top: 1px solid #e9ecef; }
@@ -80,7 +78,14 @@
                     <div class="card p-3 shadow-sm border-0">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="fw-bold text-secondary m-0">LỊCH SỬ VỪA NHẬP</h6>
-                            <a href="${pageContext.request.contextPath}/sales-journal?action=exportDaily" class="btn btn-sm btn-outline-success fw-bold">📥 Excel</a>
+                            <div>
+                                <a href="${pageContext.request.contextPath}/sales-journal?action=deleteAll" 
+                                   class="btn btn-sm btn-danger fw-bold me-1"
+                                   onclick="return confirm('⚠️ CẢNH BÁO NGUY HIỂM!\n\nBạn có chắc muốn XÓA SẠCH toàn bộ dữ liệu không?\n\nHành động này sẽ:\n1. Xóa hết tất cả đơn hàng.\n2. Reset số thứ tự về 1.\n3. KHÔNG THỂ KHÔI PHỤC LẠI.\n\nHãy chắc chắn bạn đã Xuất Excel lưu về máy rồi!')">
+                                   🔄 Reset Kỳ Mới
+                                </a>
+                                <a href="${pageContext.request.contextPath}/sales-journal?action=exportDaily" class="btn btn-sm btn-outline-success fw-bold">📥 Excel</a>
+                            </div>
                         </div>
                         <div class="table-responsive bg-white rounded" style="max-height: 400px">
                             <table class="table table-striped table-hover text-center align-middle mb-0">
