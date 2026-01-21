@@ -98,7 +98,17 @@
                                             </td>
                                             <td class="fw-bold text-primary"><%=String.format("%,.0f", e.getRevenue())%></td>
                                             <td>
-                                                <button type="button" onclick="edit('<%=e.getId()%>','<%=e.getEntryDate()%>','<%=e.getDescription()%>','<%=e.getCustomerName()%>','<%=e.getQuantity()%>','<%=e.getPrice()%>', 'journal')" class="btn btn-sm btn-outline-primary border-0 p-1">✏️</button>
+                                                <button type="button" 
+                                                        class="btn btn-sm btn-outline-primary border-0 p-1"
+                                                        data-id="<%=e.getId()%>"
+                                                        data-date="<%=e.getEntryDate()%>"
+                                                        data-desc="<%=e.getDescription()%>"
+                                                        data-cust="<%=e.getCustomerName()%>"
+                                                        data-qty="<%=e.getQuantity()%>"
+                                                        data-price="<%=e.getPrice()%>"
+                                                        data-source="journal"
+                                                        onclick="openEdit(this)">✏️</button>
+                                                        
                                                 <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=e.getId()%>" class="btn btn-sm btn-outline-danger border-0 p-1" onclick="return confirm('Xóa?')">🗑</a>
                                             </td>
                                         </tr>
@@ -143,7 +153,17 @@
                                                         <td class="text-start"><%=raw.getDescription()%> <span class="text-muted small">(<%=raw.getQuantity()%>)</span></td>
                                                         <td class="fw-bold"><%=String.format("%,.0f", raw.getRevenue())%></td>
                                                         <td>
-                                                            <button type="button" onclick="switchModal('<%=raw.getId()%>','<%=raw.getEntryDate()%>','<%=raw.getDescription()%>','<%=raw.getCustomerName()%>','<%=raw.getQuantity()%>','<%=raw.getPrice()%>', 'report')" class="btn btn-sm btn-primary py-0 px-1">✏️</button>
+                                                            <button type="button" 
+                                                                    class="btn btn-sm btn-primary py-0 px-1"
+                                                                    data-id="<%=raw.getId()%>"
+                                                                    data-date="<%=raw.getEntryDate()%>"
+                                                                    data-desc="<%=raw.getDescription()%>"
+                                                                    data-cust="<%=raw.getCustomerName()%>"
+                                                                    data-qty="<%=raw.getQuantity()%>"
+                                                                    data-price="<%=raw.getPrice()%>"
+                                                                    data-source="report"
+                                                                    onclick="switchModal(this)">✏️</button>
+                                                                    
                                                             <a href="${pageContext.request.contextPath}/sales-journal?action=delete&id=<%=raw.getId()%>&tab=report" onclick="return confirm('Xóa?')" class="btn btn-sm btn-danger py-0 px-1">🗑</a>
                                                         </td>
                                                     </tr>
@@ -214,41 +234,43 @@ window.onload = function() {
     }
 }
 
-// Hàm mở Modal Sửa (Đã fix lỗi getOrCreateInstance)
-function edit(id,date,desc,cust,qty,price, source){
-    document.getElementById('eid').value=id; 
-    document.getElementById('edate').value=date;
-    document.getElementById('edesc').value=desc; 
-    document.getElementById('ecust').value=cust;
-    document.getElementById('eqty').value=qty; 
-    document.getElementById('eprice').value=parseFloat(price).toFixed(0);
-    document.getElementById('eorigin').value = source || 'journal';
+// HÀM MỞ FORM SỬA (Dùng Data Attributes để an toàn)
+function openEdit(btn) {
+    // Lấy dữ liệu từ chính cái nút được bấm
+    document.getElementById('eid').value = btn.dataset.id;
+    document.getElementById('edate').value = btn.dataset.date;
+    document.getElementById('edesc').value = btn.dataset.desc;
+    document.getElementById('ecust').value = btn.dataset.cust;
+    document.getElementById('eqty').value = btn.dataset.qty;
     
-    // Dùng getOrCreateInstance để tránh lỗi
+    // Giá tiền cần xử lý chút xíu (chuyển về số nguyên)
+    var priceRaw = btn.dataset.price;
+    document.getElementById('eprice').value = parseFloat(priceRaw).toFixed(0);
+    
+    document.getElementById('eorigin').value = btn.dataset.source;
+    
+    // Mở Modal an toàn
     var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editModal'));
     myModal.show();
 }
 
-// Hàm mở Modal Chi tiết
 function showDetailModal(dateKey) {
     document.getElementById('dtTitle').innerText = dateKey;
     document.getElementById('detailContent').innerHTML = document.getElementById('data-' + dateKey).innerHTML;
-    
     var myModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('detailModal'));
     myModal.show();
 }
 
-// Hàm chuyển đổi an toàn
-function switchModal(id,date,desc,cust,qty,price, source){
+function switchModal(btn) {
     var detailEl = document.getElementById('detailModal');
     var detailInstance = bootstrap.Modal.getOrCreateInstance(detailEl);
     
-    // Ẩn modal chi tiết
+    // Ẩn modal chi tiết trước
     detailInstance.hide();
     
-    // Chờ 300ms cho modal cũ tắt hẳn rồi mới bật modal sửa
+    // Đợi modal cũ tắt hẳn rồi mới mở modal sửa
     setTimeout(function(){ 
-        edit(id,date,desc,cust,qty,price, source); 
+        openEdit(btn); 
     }, 300);
 }
 </script>
